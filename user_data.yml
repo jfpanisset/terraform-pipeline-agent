@@ -1,0 +1,53 @@
+#cloud-config
+users:
+  - name: agent
+    groups: sudo,docker
+    shell: /bin/bash
+    sudo: ['ALL=(ALL) NOPASSWD:ALL']
+groups:
+  - docker
+write_files:
+  - path: /wait-for-cloud-init.sh
+    content: |
+      tail -f /var/log/cloud-init-output.log & P=$!
+      while [ ! -f /home/agent/cloud-init-finished ]
+      do
+        sleep 2
+      done
+      kill -9 $P
+  - path: /setup.sh
+    content: |
+      mkdir /home/agent/.ssh
+      cp /root/.ssh/authorized_keys /home/agent/.ssh
+      chown -R agent:agent /home/agent/.ssh
+
+      sudo -H -i -u agent bash << EOF
+      cd ~
+      touch cloud-init-started
+
+      # install powershell
+      wget -q https://packages.microsoft.com/config/ubuntu/18.04/packages-microsoft-prod.deb
+      sudo dpkg -i packages-microsoft-prod.deb
+      sudo apt-get update
+      sudo add-apt-repository universe
+      sudo apt-get install -y powershell
+
+      # install docker
+      sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+      curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+      sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu bionic stable"
+      sudo apt update
+      sudo apt install -y docker-ce
+      sudo usermod -aG docker agent
+
+      # download and untar the Azure Pipelines agent
+      mkdir agent
+      cd agent
+      wget https://vstsagentpackage.azureedge.net/agent/2.159.2/vsts-agent-linux-x64-2.159.2.tar.gz
+      tar zxf vsts-agent-linux-x64-2.159.2.tar.gz
+
+      cd ~
+      touch cloud-init-finished
+      EOF
+runcmd:
+  - sh /setup.sh
