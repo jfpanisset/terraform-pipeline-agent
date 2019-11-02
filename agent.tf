@@ -9,13 +9,15 @@ resource "google_compute_instance" "default" {
 
   boot_disk {
     initialize_params {
-      image = "ubuntu-1804-bionic-v20191021"
+      // image = "ubuntu-1804-bionic-v20191021" // used when creating the image
+      image = "agent"
     }
   }
 
-  metadata = {
-    user-data = "${file("user_data.yml")}"
-  }
+  // used when creating the image
+  // metadata = {
+  //   user-data = "${file("user_data.yml")}"
+  // }
 
   scheduling {
     preemptible       = true
