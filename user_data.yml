@@ -4,6 +4,8 @@ users:
     groups: sudo,docker
     shell: /bin/bash
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
+    ssh_authorized_keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDZtrF01G62QqDduWOYcTI6r9zYKAsXAraqwlr/xOugzpLGvRo1jnRVyGZlejwhQuX43OvX4oXjTWsChbPHO0yFU3L41j6mskOZrUr/F7jq3kCRXjV6SJOeMmGfU46PShoAGW7WAu/dlnrt38NV0a+m5OPFuACCK72Y18TuGmKY8pkxia1tw2dUpRmqaP78TeTcnK+t0nxkdNz708EFIoIpHZ9sBMhKFm8nLxEUbQEUPi/YQfKC2pAoQ7AeM4pedl5hReFmLTUeQzEIokAhOuXA1PkJOUtwzZ2GwmPO61DZhNuWwIRd4PsV8LjrkhB/lKWVtmwL8z2wauth9Od/MIwd agent
 groups:
   - docker
 write_files:
@@ -17,10 +19,6 @@ write_files:
       kill -9 $P
   - path: /setup.sh
     content: |
-      mkdir /home/agent/.ssh
-      cp /root/.ssh/authorized_keys /home/agent/.ssh
-      chown -R agent:agent /home/agent/.ssh
-
       sudo -H -i -u agent bash << EOF
       cd ~
       touch cloud-init-started

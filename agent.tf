@@ -1,19 +1,45 @@
-resource "digitalocean_droplet" "agent" {
-    image = "ubuntu-18-04-x64"
-    name = "punty.gervas.io"
-    region = "sfo2"
-    size = "s-4vcpu-8gb"
-    ssh_keys = [
-      "${var.ssh_fingerprint}"
-    ]
-    user_data = "${file("user_data.yml")}"
+resource "random_id" "instance_id" {
+  byte_length = 8
+}
+
+resource "google_compute_instance" "default" {
+  name         = "vm-${random_id.instance_id.hex}"
+  machine_type = "n1-standard-2"
+  zone         = "us-west2-a"
+
+  boot_disk {
+    initialize_params {
+      image = "ubuntu-1804-bionic-v20191021"
+    }
+  }
+
+  metadata = {
+    user-data = "${file("user_data.yml")}"
+  }
+
+  scheduling {
+    preemptible       = true
+    automatic_restart = false
+  }
+
+  network_interface {
+    network = "default"
+
+    access_config {
+      // Include this section to give the VM an external ip address
+      network_tier = "STANDARD"
+    }
+  }
+
+  // Apply the firewall rule to allow external IPs to access this instance
+  tags = ["http-server"]
 
   connection {
       user = "agent"
       type = "ssh"
-      private_key = "${var.ssh_pvt_key}"
+      private_key = "${file(var.ssh_pvt_key)}"
       timeout = "2m"
-      host = "${digitalocean_droplet.agent.ipv4_address}"
+      host = "${google_compute_instance.default.network_interface.0.access_config.0.nat_ip}"
   }
 
   provisioner "remote-exec" {
@@ -37,21 +63,34 @@ resource "digitalocean_droplet" "agent" {
     inline = [
       "sudo -H -i -u agent bash << EOF",
       "cd ~/agent",
-      "export VSTS_AGENT_INPUT_URL=https://dev.azure.com/g3rv4",
-      "export VSTS_AGENT_INPUT_AUTH=pat",
-      "export VSTS_AGENT_INPUT_TOKEN=${var.agent_pat}",
-      "export VSTS_AGENT_INPUT_POOL=default",
-      "export VSTS_AGENT_INPUT_AGENT=punty",
       "sudo ./svc.sh stop",
       "EOF"
     ]
   }
 }
 
+resource "google_compute_firewall" "http-server" {
+  name    = "default-allow-http"
+  network = "default"
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80"]
+  }
+
+  // Allow traffic from everywhere to instances with an http-server tag
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["http-server"]
+}
+
 resource "cloudflare_record" "agent" {
   zone_id = "${var.cloudflare_zone_id}"
   name    = "punty"
-  value   = "${digitalocean_droplet.agent.ipv4_address}"
+  value   = "${google_compute_instance.default.network_interface.0.access_config.0.nat_ip}"
   type    = "A"
   ttl     = 120
+}
+
+output "ip" {
+  value = "${google_compute_instance.default.network_interface.0.access_config.0.nat_ip}"
 }
