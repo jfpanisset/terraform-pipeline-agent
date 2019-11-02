@@ -39,7 +39,7 @@ resource "google_compute_instance" "default" {
   connection {
       user = "agent"
       type = "ssh"
-      private_key = "${file(var.ssh_pvt_key)}"
+      private_key = "${base64decode(var.ssh_pvt_key_base64)}"
       timeout = "2m"
       host = "${google_compute_instance.default.network_interface.0.access_config.0.nat_ip}"
   }
