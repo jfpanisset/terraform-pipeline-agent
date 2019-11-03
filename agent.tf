@@ -1,23 +1,19 @@
-resource "random_id" "instance_id" {
-  byte_length = 8
-}
-
 resource "google_compute_instance" "default" {
-  name         = "vm-${random_id.instance_id.hex}"
+  name         = "agent"
   machine_type = "n1-standard-2"
   zone         = "us-west2-a"
 
   boot_disk {
     initialize_params {
-      // image = "ubuntu-1804-bionic-v20191021" // used when creating the image
+      # image = "ubuntu-1804-bionic-v20191021" // used when creating the image
       image = "agent"
     }
   }
 
   // used when creating the image
-  // metadata = {
-  //   user-data = "${file("user_data.yml")}"
-  // }
+  # metadata = {
+  #   user-data = "${file("user_data.yml")}"
+  # }
 
   scheduling {
     preemptible       = true
@@ -63,10 +59,15 @@ resource "google_compute_instance" "default" {
     when   = "destroy"
     on_failure = "continue"
     inline = [
-      "sudo -H -i -u agent bash << EOF",
       "cd ~/agent",
       "sudo ./svc.sh stop",
-      "EOF"
+      "sudo ./svc.sh uninstall",
+      "export VSTS_AGENT_INPUT_URL=https://dev.azure.com/g3rv4",
+      "export VSTS_AGENT_INPUT_AUTH=pat",
+      "export VSTS_AGENT_INPUT_TOKEN=${var.agent_pat}",
+      "export VSTS_AGENT_INPUT_POOL=default",
+      "export VSTS_AGENT_INPUT_AGENT=punty",
+      "./config.sh remove",
     ]
   }
 }
