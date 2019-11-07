@@ -1,16 +1,16 @@
 resource "google_compute_instance" "default" {
-  name         = "agent"
-  machine_type = "n1-standard-2"
-  zone         = "us-west2-a"
+  name         = "${var.agent_name}"
+  machine_type = "${var.gcp_machine_type}"
+  zone         = "${var.gcp_zone}"
 
   boot_disk {
     initialize_params {
       # image = "ubuntu-1804-bionic-v20191021" // used when creating the image
-      image = "agent"
+      image = "pipelines-agent"
     }
   }
 
-  // used when creating the image
+  # // used when creating the image
   # metadata = {
   #   user-data = "${file("user_data.yml")}"
   # }
@@ -43,12 +43,28 @@ resource "google_compute_instance" "default" {
   provisioner "remote-exec" {
     inline = [
       "sh /wait-for-cloud-init.sh",
+
+      # configure the pipelines agent manager
+      "echo '{' > ~/.PipelinesAgentManager",
+      "echo '\"TerraformToken\": \"${var.terraform_token}\",' >> ~/.PipelinesAgentManager",
+      "echo '\"PipelinesPAT\": \"${var.pipelines_provisioner_pat}\",' >> ~/.PipelinesAgentManager",
+      "echo '\"PipelinesOrg\": \"${var.pipelines_org}\",' >> ~/.PipelinesAgentManager",
+      "echo '\"DefaultWorkspace\": \"${var.terraform_workspace}\",' >> ~/.PipelinesAgentManager",
+      "echo '\"DefaultPoolId\": ${var.pipelines_pool_id}' >> ~/.PipelinesAgentManager",
+      "echo '}' >> ~/.PipelinesAgentManager",
+
+      # install it and add the destroy to the cron
+      "dotnet tool install --global PipelinesAgentManager.Cli",
+      "echo \"* * * * * agent $HOME/.dotnet/tools/PipelinesAgentManager destroy -m 20 >> $HOME/PipelinesAgentManagerDestroy.log 2>&1\" | sudo tee /etc/cron.d/PipelinesAgentManager",
+      "echo \"* * * * * agent $HOME/.dotnet/tools/PipelinesAgentManager applyIfNeeded >> $HOME/PipelinesAgentManagerApply.log 2>&1\" | sudo tee -a /etc/cron.d/PipelinesAgentManager",
+
+      # run the actual agent
       "cd agent",
-      "export VSTS_AGENT_INPUT_URL=https://dev.azure.com/g3rv4",
+      "export VSTS_AGENT_INPUT_URL=https://dev.azure.com/${var.pipelines_org}",
       "export VSTS_AGENT_INPUT_AUTH=pat",
-      "export VSTS_AGENT_INPUT_TOKEN=${var.agent_pat}",
-      "export VSTS_AGENT_INPUT_POOL=default",
-      "export VSTS_AGENT_INPUT_AGENT=punty",
+      "export VSTS_AGENT_INPUT_TOKEN=${var.pipelines_agent_pat}",
+      "export VSTS_AGENT_INPUT_POOL=${var.pipelines_pool_name}",
+      "export VSTS_AGENT_INPUT_AGENT=${var.agent_name}",
       "./config.sh --unattended --acceptTeeEula --replace",
       "sudo ./svc.sh install",
       "sudo ./svc.sh start",
@@ -62,11 +78,11 @@ resource "google_compute_instance" "default" {
       "cd ~/agent",
       "sudo ./svc.sh stop",
       "sudo ./svc.sh uninstall",
-      "export VSTS_AGENT_INPUT_URL=https://dev.azure.com/g3rv4",
+      "export VSTS_AGENT_INPUT_URL=https://dev.azure.com/${var.pipelines_org}",
       "export VSTS_AGENT_INPUT_AUTH=pat",
-      "export VSTS_AGENT_INPUT_TOKEN=${var.agent_pat}",
-      "export VSTS_AGENT_INPUT_POOL=default",
-      "export VSTS_AGENT_INPUT_AGENT=punty",
+      "export VSTS_AGENT_INPUT_TOKEN=${var.pipelines_agent_pat}",
+      "export VSTS_AGENT_INPUT_POOL=${var.pipelines_pool_name}",
+      "export VSTS_AGENT_INPUT_AGENT=${var.agent_name}",
       "./config.sh remove",
     ]
   }
@@ -88,7 +104,7 @@ resource "google_compute_firewall" "http-server" {
 
 resource "cloudflare_record" "agent" {
   zone_id = "${var.cloudflare_zone_id}"
-  name    = "punty"
+  name    = "${var.agent_name}"
   value   = "${google_compute_instance.default.network_interface.0.access_config.0.nat_ip}"
   type    = "A"
   ttl     = 120

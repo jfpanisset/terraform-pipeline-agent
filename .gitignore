@@ -1,3 +1,5 @@
 *.tfvars
 .terraform
 terraformgcp.json
+*.tfstate
+*.tfstate.*
