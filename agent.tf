@@ -60,7 +60,8 @@ resource "google_compute_instance" "default" {
 
       # run the actual agent
       "cd agent",
-      "./config.sh --unattended --acceptTeeEula --replace --url https://dev.azure.com/${var.pipelines_org} --auth pat --token ${var.pipelines_agent_pat} --pool ${var.pipelines_pool_name} --agent ${var.agent_name}",
+      "export VSTS_AGENT_INPUT_TOKEN=${var.pipelines_agent_pat}",
+      "./config.sh --unattended --acceptTeeEula --replace --url https://dev.azure.com/${var.pipelines_org} --auth pat --pool ${var.pipelines_pool_name} --agent ${var.agent_name}",
       "sudo ./svc.sh install",
       "sudo ./svc.sh start",
     ]
@@ -73,7 +74,8 @@ resource "google_compute_instance" "default" {
       "cd ~/agent",
       "sudo ./svc.sh stop",
       "sudo ./svc.sh uninstall",
-      "./config.sh remove --url https://dev.azure.com/${var.pipelines_org} --auth pat --token ${var.pipelines_agent_pat} --pool ${var.pipelines_pool_name} --agent ${var.agent_name}",
+      "export VSTS_AGENT_INPUT_TOKEN=${var.pipelines_agent_pat}",
+      "./config.sh remove --url https://dev.azure.com/${var.pipelines_org} --auth pat --pool ${var.pipelines_pool_name} --agent ${var.agent_name}",
     ]
   }
 }
